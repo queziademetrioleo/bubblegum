@@ -273,8 +273,6 @@ Issues e PRs são muito bem-vindos. Algumas ideias:
 
 Criado por [@queziademetrioleo](https://github.com/queziademetrioleo).
 
-Inspirado no excelente [deepclaude](https://github.com/aattaran/deepclaude) de [@aattaran](https://github.com/aattaran) — o projeto que provou que dá pra rodar Claude Code com backends alternativos.
-
 Modelos: [GLM 5.2](https://github.com/zai-org/GLM-5.2) (Zhipu AI / Z.AI) · [DeepSeek V4](https://deepseek.com) (DeepSeek)
 
 ---
