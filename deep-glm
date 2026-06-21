@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -z "${ZAI_API_KEY:-}" ]; then
+  echo "Erro: defina ZAI_API_KEY antes de rodar deep-glm."
+  echo "Exemplo:"
+  echo '  export ZAI_API_KEY="sua-chave-zai"'
+  exit 1
+fi
+
+export ANTHROPIC_AUTH_TOKEN="$ZAI_API_KEY"
+export ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic"
+
+# GLM-5.2 principal
+export ANTHROPIC_DEFAULT_OPUS_MODEL="glm-5.2"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="glm-5.2"
+
+# Modelo leve para tarefas menores/subagentes
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="glm-4.7"
+export CLAUDE_CODE_SUBAGENT_MODEL="glm-4.7"
+
+# Contexto 1M recomendado pela Z.AI
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="1000000"
+
+# Timeout alto para tarefas agentic/coding longas
+export API_TIMEOUT_MS="${API_TIMEOUT_MS:-3000000}"
+
+exec claude "$@"
