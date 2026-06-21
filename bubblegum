@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# bubblegum — Claude Code wrapper for GLM 5.2 & DeepSeek V4
+# Usage: bubblegum [--glm|--deepseek|--anthropic] [claude-args...]
+set -euo pipefail
+
+BACKEND="${BUBBLEGUM_DEFAULT:-glm}"
+
+# Parse --backend flag
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --glm)       BACKEND="glm"; shift ;;
+        --deepseek)  BACKEND="deepseek"; shift ;;
+        --anthropic) BACKEND="anthropic"; shift ;;
+        --help|-h)
+            echo "bubblegum — Claude Code with cheap backends"
+            echo ""
+            echo "Usage: bubblegum [--glm|--deepseek|--anthropic] [claude-args...]"
+            echo ""
+            echo "Backends:"
+            echo "  --glm        GLM 5.2 via Z.AI (default, Anthropic-compatible)"
+            echo "  --deepseek   DeepSeek V4 Pro (requires DEEPSEEK_API_KEY)"
+            echo "  --anthropic  Anthropic official (default Claude Code behavior)"
+            echo ""
+            echo "Config:"
+            echo "  GLM:       export ZAI_API_KEY=\"...\""
+            echo "  DeepSeek:  export DEEPSEEK_API_KEY=\"...\""
+            echo ""
+            echo "Default backend: export BUBBLEGUM_DEFAULT=glm|deepseek"
+            exit 0
+            ;;
+        *) break ;;
+    esac
+done
+
+# --- Anthropic (passthrough) ---
+if [[ "$BACKEND" == "anthropic" ]]; then
+    unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN
+    unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL
+    unset ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL
+    unset CLAUDE_CODE_AUTO_COMPACT_WINDOW API_TIMEOUT_MS
+    exec claude "$@"
+fi
+
+# --- GLM 5.2 (Z.AI) ---
+if [[ "$BACKEND" == "glm" ]]; then
+    if [[ -z "${ZAI_API_KEY:-}" ]]; then
+        echo "Erro: defina ZAI_API_KEY para usar o backend GLM."
+        echo "  export ZAI_API_KEY=\"sua-chave-zai\""
+        echo ""
+        echo "Obtenha sua chave em: https://api.z.ai"
+        echo "Ou use: bubblegum --deepseek"
+        exit 1
+    fi
+
+    export ANTHROPIC_AUTH_TOKEN="$ZAI_API_KEY"
+    export ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic"
+
+    # GLM-5.2 (744B MoE, ~40B ativos, 1M contexto, MIT)
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="glm-5.2"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="glm-5.2"
+
+    # GLM-4.7 para subagentes e tarefas leves
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="glm-4.7"
+    export CLAUDE_CODE_SUBAGENT_MODEL="glm-4.7"
+
+    export CLAUDE_CODE_AUTO_COMPACT_WINDOW="1000000"
+    export API_TIMEOUT_MS="${API_TIMEOUT_MS:-3000000}"
+
+    exec claude "$@"
+fi
+
+# --- DeepSeek V4 Pro ---
+if [[ "$BACKEND" == "deepseek" ]]; then
+    if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+        echo "Erro: defina DEEPSEEK_API_KEY para usar o backend DeepSeek."
+        echo "  export DEEPSEEK_API_KEY=\"sk-...\""
+        echo ""
+        echo "Obtenha sua chave em: https://platform.deepseek.com/api_keys"
+        echo "Ou use: bubblegum --glm"
+        exit 1
+    fi
+
+    export ANTHROPIC_AUTH_TOKEN="$DEEPSEEK_API_KEY"
+    export ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"
+
+    # DeepSeek V4 Pro (MOE, 685B total, 37B ativos)
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="deepseek-v4-pro"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-v4-pro"
+
+    # Flash para subagentes
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="deepseek-v4-flash"
+    export CLAUDE_CODE_SUBAGENT_MODEL="deepseek-v4-flash"
+
+    exec claude "$@"
+fi

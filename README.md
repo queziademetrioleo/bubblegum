@@ -1,86 +1,134 @@
-# deep-glm
+# bubblegum
 
-Claude Code com **GLM 5.2** da Zhipu AI (智谱) via endpoint Anthropic-compatível da [Z.AI](https://api.z.ai/api/anthropic).
+**Claude Code com backends baratos** — GLM 5.2 e DeepSeek V4 Pro, sem proxy, sem tradução de formato.
 
-## Por que?
+```
+bubblegum              # GLM 5.2 (default)
+bubblegum --deepseek   # DeepSeek V4 Pro
+bubblegum --anthropic  # Anthropic oficial
+```
 
-O GLM 5.2 é um modelo MoE de 744B parâmetros (~40B ativos), contexto de 1M tokens, licença MIT — e o endpoint Anthropic-compatível da Z.AI permite usar diretamente com o Claude Code, sem proxy nem tradução de formato.
+## Backends
 
-| Comando | Backend | Custo relativo |
-|---------|---------|-----------------|
-| `claude` | Anthropic oficial | $$$ |
-| `deepclaude` | DeepSeek V4 Pro | $ |
-| `deep-glm` | GLM 5.2 (Z.AI) | $ |
+| Flag | Modelo | Fornecedor | Endpoint | Preço input/output (por 1M tokens) |
+|------|--------|------------|----------|-------------------------------------|
+| `--glm` | GLM 5.2 | Zhipu AI (智谱) | Z.AI | ~$0.70 / ~$2.80 |
+| `--deepseek` | DeepSeek V4 Pro | DeepSeek | api.deepseek.com | $0.44 / $0.87 |
+| `--anthropic` | Claude Opus/Sonnet | Anthropic | api.anthropic.com | $3.00 / $15.00 |
+
+### GLM 5.2
+
+- **744B parâmetros** MoE (~40B ativos por token)
+- **1 milhão de tokens** de contexto nativo
+- **Licença MIT** — pesos abertos, uso comercial liberado
+- Endpoint **Anthropic-compatível nativo** via Z.AI
+- Modelos: `glm-5.2` (principal) + `glm-4.7` (subagentes)
+
+### DeepSeek V4 Pro
+
+- **685B parâmetros** MoE (~37B ativos)
+- **128K tokens** de contexto
+- Endpoint Anthropic-compatível via `api.deepseek.com/anthropic`
+- Modelos: `deepseek-v4-pro` (principal) + `deepseek-v4-flash` (subagentes)
+- Cache automático de contexto (custo cai ~90% após primeira request)
 
 ## Instalação
 
 ```bash
-# 1. Clone o repo
-git clone https://github.com/queziademetrioleo/deep-glm.git
-cd deep-glm
+# Clone
+git clone https://github.com/queziademetrioleo/bubblegum.git
+cd bubblegum
 
-# 2. Instale no PATH
-chmod +x deep-glm
-sudo mv deep-glm /usr/local/bin/deep-glm
-# ou, sem sudo:
-# mv deep-glm ~/.local/bin/deep-glm
+# Instale
+chmod +x bubblegum
+sudo mv bubblegum /usr/local/bin/bubblegum
+# ou sem sudo:
+# mv bubblegum ~/.local/bin/bubblegum
 ```
 
 ## Configuração
 
-Gere sua chave em [Z.AI API Keys](https://api.z.ai) e adicione ao seu shell:
-
 ```bash
-# ~/.zshrc ou ~/.bashrc
+# GLM 5.2 (obtenha em https://api.z.ai)
 export ZAI_API_KEY="sua-chave-zai"
+
+# DeepSeek V4 (obtenha em https://platform.deepseek.com/api_keys)
+export DEEPSEEK_API_KEY="sk-..."
+
+# Backend padrão (opcional)
+export BUBBLEGUM_DEFAULT="deepseek"  # ou "glm"
 ```
 
-Recarregue: `source ~/.zshrc`
+Adicione ao `~/.zshrc` ou `~/.bashrc` e `source` depois.
 
 ## Uso
 
 ```bash
-deep-glm
+# GLM 5.2 (default)
+bubblegum
+
+# DeepSeek V4
+bubblegum --deepseek
+
+# Anthropic normal
+bubblegum --anthropic
+
+# Ajuda
+bubblegum --help
 ```
 
-Dentro do Claude Code, para tarefas complexas:
+Dentro do Claude Code:
 
 ```
-/effort max
+/status        # confirmar modelo ativo
+/effort max   # esforço máximo para tarefas complexas
 ```
-
-## Modelos
-
-| Variável | Modelo | Propósito |
-|----------|--------|-----------|
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.2` | Tarefas principais |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.2` | Tarefas normais |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-4.7` | Subagentes / tarefas leves |
 
 ## Como funciona
 
-O script configura variáveis de ambiente que o Claude Code lê:
+Claude Code lê variáveis de ambiente para decidir pra onde mandar as chamadas de API. O `bubblegum` configura:
 
 ```
-ANTHROPIC_BASE_URL   → https://api.z.ai/api/anthropic
-ANTHROPIC_AUTH_TOKEN  → $ZAI_API_KEY
-ANTHROPIC_DEFAULT_*_MODEL → glm-5.2 / glm-4.7
+ANTHROPIC_BASE_URL          → endpoint do backend
+ANTHROPIC_AUTH_TOKEN        → chave de API
+ANTHROPIC_DEFAULT_*_MODEL   → nome do modelo
 ```
 
-O endpoint da Z.AI é nativamente compatível com o formato Anthropic Messages API — sem necessidade de proxy de tradução.
-
-## Requisitos
-
-- [Claude Code](https://claude.ai/code) instalado
-- Chave de API da [Z.AI](https://api.z.ai)
-- macOS, Linux, ou Windows (PowerShell — veja abaixo)
+Sem proxy local, sem tradução de formato — ambos GLM e DeepSeek já expõem endpoints compatíveis com Anthropic Messages API.
 
 ## Windows (PowerShell)
 
 ```powershell
-# deep-glm.ps1
+# bubblegum.ps1
+param(
+  [switch]$DeepSeek,
+  [switch]$Anthropic
+)
+
+if ($Anthropic) {
+  Remove-Item Env:ANTHROPIC_BASE_URL -ErrorAction SilentlyContinue
+  claude @args
+  exit 0
+}
+
+if ($DeepSeek) {
+  if (-not $env:DEEPSEEK_API_KEY) {
+    Write-Error "Defina DEEPSEEK_API_KEY"
+    exit 1
+  }
+  $env:ANTHROPIC_AUTH_TOKEN = $env:DEEPSEEK_API_KEY
+  $env:ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
+  $env:ANTHROPIC_DEFAULT_OPUS_MODEL = "deepseek-v4-pro"
+  $env:ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek-v4-pro"
+  $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "deepseek-v4-flash"
+  $env:CLAUDE_CODE_SUBAGENT_MODEL = "deepseek-v4-flash"
+  claude @args
+  exit 0
+}
+
+# Default: GLM
 if (-not $env:ZAI_API_KEY) {
-  Write-Error "Defina ZAI_API_KEY antes de rodar deep-glm."
+  Write-Error "Defina ZAI_API_KEY"
   exit 1
 }
 $env:ANTHROPIC_AUTH_TOKEN = $env:ZAI_API_KEY
@@ -89,14 +137,12 @@ $env:ANTHROPIC_DEFAULT_OPUS_MODEL = "glm-5.2"
 $env:ANTHROPIC_DEFAULT_SONNET_MODEL = "glm-5.2"
 $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "glm-4.7"
 $env:CLAUDE_CODE_SUBAGENT_MODEL = "glm-4.7"
-$env:CLAUDE_CODE_AUTO_COMPACT_WINDOW = "1000000"
-if (-not $env:API_TIMEOUT_MS) { $env:API_TIMEOUT_MS = "3000000" }
 claude @args
 ```
 
 ## Créditos
 
-Inspirado no [deepclaude](https://github.com/aattaran/deepclaude) de @aattaran.
+Inspirado no [deepclaude](https://github.com/aattaran/deepclaude) do @aattaran.
 
 ## Licença
 
